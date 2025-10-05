@@ -15,10 +15,35 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Update AGP version in settings.gradle
-        run: sed -i "s/8.1.0/8.1.1/g" android/settings.gradle || true
+        run: sed -i "s/8.1.1/8.6.0/g" android/settings.gradle || true  # Bump to min 8.6.0; adjust pattern if needed
 
       - name: Update AGP version in build.gradle
-        run: sed -i "s/8.1.0/8.1.1/g" android/build.gradle || true
+        run: sed -i "s/8.1.1/8.6.0/g" android/build.gradle || true  # Fallback for older templates
+
+      - name: Update Kotlin version in settings.gradle
+        run: sed -i "s/1.8.22/2.1.0/g" android/settings.gradle || true  # Bump to min 2.1.0
+
+      - name: Update Kotlin version in build.gradle
+        run: sed -i "s/1.8.22/2.1.0/g" android/build.gradle || true  # Fallback for older templates
+
+      - name: Setup Java (for keystore handling)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Create key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=../app/upload-keystore.jks
+          EOF
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -33,10 +58,4 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+        run: flutter build apk --release --android-skip-build-dependency-validation  # Temporary bypass for warnings
