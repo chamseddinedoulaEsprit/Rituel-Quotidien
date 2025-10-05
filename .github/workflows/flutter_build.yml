@@ -46,32 +46,58 @@ jobs:
 
       - name: Fix JVM target compatibility
         run: |
-          # Fixer les cibles JVM dans android/build.gradle
+          # Configurer gradle.properties pour forcer Java 1.8 globalement
+          GRADLE_PROPS="android/gradle.properties"
+          echo "Configuration gradle.properties pour Java 1.8..."
+          
+          # Ajouter ou modifier les propriétés JVM dans gradle.properties
+          if [ -f "$GRADLE_PROPS" ]; then
+            # Supprimer les anciennes propriétés JVM s'il y en a
+            sed -i '/org.gradle.jvmargs/d' "$GRADLE_PROPS"
+            sed -i '/kotlin.jvm.target.validation.mode/d' "$GRADLE_PROPS"
+          fi
+          
+          # Ajouter les nouvelles propriétés pour forcer Java 1.8
+          echo "" >> "$GRADLE_PROPS"
+          echo "# Force Java 1.8 compatibility" >> "$GRADLE_PROPS"
+          echo "org.gradle.jvmargs=-Dfile.encoding=UTF-8" >> "$GRADLE_PROPS"
+          echo "kotlin.jvm.target.validation.mode=ignore" >> "$GRADLE_PROPS"
+          
           BUILD_FILE="android/build.gradle"
           if [ -f "$BUILD_FILE" ]; then
             echo "Correction des cibles JVM dans $BUILD_FILE..."
             
-            # S'assurer que kotlinOptions utilise JVM target 1.8
+            # Corriger les jvmTarget existants
             sed -i 's/jvmTarget = "11"/jvmTarget = "1.8"/g' "$BUILD_FILE"
             sed -i 's/jvmTarget = "17"/jvmTarget = "1.8"/g' "$BUILD_FILE"
             sed -i 's/jvmTarget = JavaVersion.VERSION_11/jvmTarget = "1.8"/g' "$BUILD_FILE"
             sed -i 's/jvmTarget = JavaVersion.VERSION_17/jvmTarget = "1.8"/g' "$BUILD_FILE"
             
-            echo "Cibles JVM corrigées dans build.gradle"
+            # Ajouter configuration globale JVM 1.8 à la fin
+            echo "" >> "$BUILD_FILE"
+            echo "// Force Java 1.8 pour tous les projets et dépendances" >> "$BUILD_FILE"
+            echo "allprojects {" >> "$BUILD_FILE"
+            echo "    tasks.withType(JavaCompile) {" >> "$BUILD_FILE"
+            echo "        sourceCompatibility = JavaVersion.VERSION_1_8" >> "$BUILD_FILE"
+            echo "        targetCompatibility = JavaVersion.VERSION_1_8" >> "$BUILD_FILE"
+            echo "    }" >> "$BUILD_FILE"
+            echo "    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {" >> "$BUILD_FILE"
+            echo "        kotlinOptions.jvmTarget = \"1.8\"" >> "$BUILD_FILE"
+            echo "    }" >> "$BUILD_FILE"
+            echo "}" >> "$BUILD_FILE"
+            
+            echo "Configuration globale JVM 1.8 ajoutée"
           fi
           
-          # Fixer les cibles JVM dans android/app/build.gradle  
           APP_BUILD_FILE="android/app/build.gradle"
           if [ -f "$APP_BUILD_FILE" ]; then
             echo "Correction des cibles JVM dans $APP_BUILD_FILE..."
             
-            # S'assurer que compileOptions utilise Java 1.8
+            # Corriger compileOptions et kotlinOptions
             sed -i 's/sourceCompatibility = JavaVersion.VERSION_11/sourceCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
             sed -i 's/targetCompatibility = JavaVersion.VERSION_11/targetCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
             sed -i 's/sourceCompatibility = JavaVersion.VERSION_17/sourceCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
             sed -i 's/targetCompatibility = JavaVersion.VERSION_17/targetCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
-            
-            # S'assurer que kotlinOptions utilise JVM target 1.8
             sed -i 's/jvmTarget = JavaVersion.VERSION_11/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
             sed -i 's/jvmTarget = JavaVersion.VERSION_17/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
             sed -i 's/jvmTarget = "11"/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
