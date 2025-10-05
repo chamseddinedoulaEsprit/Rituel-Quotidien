@@ -44,6 +44,42 @@ jobs:
           sed -i "s/1\.9\.[0-9]\+/2.1.0/g" android/build.gradle || true
           sed -i "s/1\.8\.[0-9]\+/2.1.0/g" android/build.gradle || true
 
+      - name: Fix JVM target compatibility
+        run: |
+          # Fixer les cibles JVM dans android/build.gradle
+          BUILD_FILE="android/build.gradle"
+          if [ -f "$BUILD_FILE" ]; then
+            echo "Correction des cibles JVM dans $BUILD_FILE..."
+            
+            # S'assurer que kotlinOptions utilise JVM target 1.8
+            sed -i 's/jvmTarget = "11"/jvmTarget = "1.8"/g' "$BUILD_FILE"
+            sed -i 's/jvmTarget = "17"/jvmTarget = "1.8"/g' "$BUILD_FILE"
+            sed -i 's/jvmTarget = JavaVersion.VERSION_11/jvmTarget = "1.8"/g' "$BUILD_FILE"
+            sed -i 's/jvmTarget = JavaVersion.VERSION_17/jvmTarget = "1.8"/g' "$BUILD_FILE"
+            
+            echo "Cibles JVM corrigées dans build.gradle"
+          fi
+          
+          # Fixer les cibles JVM dans android/app/build.gradle  
+          APP_BUILD_FILE="android/app/build.gradle"
+          if [ -f "$APP_BUILD_FILE" ]; then
+            echo "Correction des cibles JVM dans $APP_BUILD_FILE..."
+            
+            # S'assurer que compileOptions utilise Java 1.8
+            sed -i 's/sourceCompatibility = JavaVersion.VERSION_11/sourceCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            sed -i 's/targetCompatibility = JavaVersion.VERSION_11/targetCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            sed -i 's/sourceCompatibility = JavaVersion.VERSION_17/sourceCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            sed -i 's/targetCompatibility = JavaVersion.VERSION_17/targetCompatibility = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            
+            # S'assurer que kotlinOptions utilise JVM target 1.8
+            sed -i 's/jvmTarget = JavaVersion.VERSION_11/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            sed -i 's/jvmTarget = JavaVersion.VERSION_17/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            sed -i 's/jvmTarget = "11"/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            sed -i 's/jvmTarget = "17"/jvmTarget = JavaVersion.VERSION_1_8/g' "$APP_BUILD_FILE"
+            
+            echo "Cibles JVM corrigées dans app/build.gradle"
+          fi
+
       - name: Enable Core Library Desugaring
         run: |
           BUILD_FILE="android/app/build.gradle"
@@ -149,8 +185,42 @@ jobs:
             else
               echo "❌ Configuration desugaring INCOMPLÈTE"
             fi
+            
+            # Vérification des cibles JVM
+            echo ""
+            echo "=== Vérification des cibles JVM ==="
+            
+            # Vérifier compileOptions Java version
+            if grep -q "sourceCompatibility.*VERSION_1_8\|targetCompatibility.*VERSION_1_8" "$BUILD_FILE"; then
+              echo "✅ Java compile options configuré pour 1.8"
+            else
+              echo "⚠️  Java compile options - vérifier la configuration"
+              grep -n "sourceCompatibility\|targetCompatibility" "$BUILD_FILE" || echo "Pas de configuration trouvée"
+            fi
+            
+            # Vérifier kotlinOptions JVM target
+            if grep -q "jvmTarget.*VERSION_1_8\|jvmTarget.*1\.8" "$BUILD_FILE"; then
+              echo "✅ Kotlin JVM target configuré pour 1.8"
+            else
+              echo "⚠️  Kotlin JVM target - vérifier la configuration"
+              grep -n "jvmTarget" "$BUILD_FILE" || echo "Pas de configuration trouvée"
+            fi
+            
           else
             echo "❌ Fichier $BUILD_FILE non trouvé"
+          fi
+          
+          # Vérifier aussi android/build.gradle pour la cohérence
+          ROOT_BUILD_FILE="android/build.gradle"
+          if [ -f "$ROOT_BUILD_FILE" ]; then
+            echo ""
+            echo "=== Vérification JVM dans $ROOT_BUILD_FILE ==="
+            if grep -q 'jvmTarget = "1.8"' "$ROOT_BUILD_FILE"; then
+              echo "✅ JVM target 1.8 configuré dans build.gradle racine"
+            else
+              echo "⚠️  JVM target dans build.gradle racine:"
+              grep -n "jvmTarget" "$ROOT_BUILD_FILE" || echo "Pas de configuration trouvée"
+            fi
           fi
 
       - name: Setup Java (for keystore handling)
