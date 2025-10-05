@@ -44,14 +44,38 @@ jobs:
           sed -i "s/1\.9\.[0-9]\+/2.1.0/g" android/build.gradle || true
           sed -i "s/1\.8\.[0-9]\+/2.1.0/g" android/build.gradle || true
 
-      - name: Verify AGP version update
+      - name: Enable Core Library Desugaring
         run: |
-          echo "=== Contenu de android/settings.gradle ==="
-          cat android/settings.gradle || echo "settings.gradle non trouvé"
-          echo "=== Contenu de android/build.gradle ==="
-          cat android/build.gradle || echo "build.gradle non trouvé"
-          echo "=== Recherche des versions AGP ==="
-          grep -n "8\." android/settings.gradle android/build.gradle || echo "Aucune version 8.x trouvée"
+          # Vérifier si le fichier app/build.gradle existe
+          if [ -f "android/app/build.gradle" ]; then
+            echo "Mise à jour de android/app/build.gradle pour activer le desugaring..."
+            
+            # Ajouter coreLibraryDesugaringEnabled = true dans compileOptions si pas déjà présent
+            if ! grep -q "coreLibraryDesugaringEnabled" android/app/build.gradle; then
+              sed -i '/compileOptions {/a\        coreLibraryDesugaringEnabled true' android/app/build.gradle
+            fi
+            
+            # Ajouter la dépendance de desugaring si pas déjà présente
+            if ! grep -q "com.android.tools:desugar_jdk_libs" android/app/build.gradle; then
+              sed -i '/dependencies {/a\    coreLibraryDesugaring '\''com.android.tools:desugar_jdk_libs:2.0.4'\''' android/app/build.gradle
+            fi
+            
+            # S'assurer que sourceCompatibility et targetCompatibility sont à Java 8 minimum
+            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_1_8/g' android/app/build.gradle
+            
+            echo "Desugaring activé avec succès"
+          else
+            echo "Fichier android/app/build.gradle non trouvé"
+          fi
+
+      - name: Verify build.gradle modifications
+        run: |
+          echo "=== Contenu de android/app/build.gradle (compileOptions) ==="
+          grep -A 10 -B 2 "compileOptions" android/app/build.gradle || echo "compileOptions non trouvé"
+          echo "=== Contenu de android/app/build.gradle (dependencies) ==="
+          grep -A 5 -B 2 "dependencies" android/app/build.gradle || echo "dependencies non trouvé"
+          echo "=== Recherche du desugaring ==="
+          grep -n "desugar" android/app/build.gradle || echo "desugaring non trouvé"
 
       - name: Setup Java (for keystore handling)
         uses: actions/setup-java@v4
