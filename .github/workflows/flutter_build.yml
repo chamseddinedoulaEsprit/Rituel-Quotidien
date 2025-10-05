@@ -14,17 +14,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Update AGP version in settings.gradle
-        run: sed -i "s/8.1.1/8.6.0/g" android/settings.gradle || true  # Bump to min 8.6.0; adjust pattern if needed
+      - name: Update AGP version in settings.gradle (multiple patterns)
+        run: |
+          # Essayer différents patterns pour l'AGP
+          sed -i "s/8\.1\.0/8.6.0/g" android/settings.gradle || true
+          sed -i "s/8\.1\.1/8.6.0/g" android/settings.gradle || true
+          sed -i "s/8\.0\.[0-9]/8.6.0/g" android/settings.gradle || true
+          sed -i "s/7\.[0-9]\.[0-9]/8.6.0/g" android/settings.gradle || true
 
-      - name: Update AGP version in build.gradle
-        run: sed -i "s/8.1.1/8.6.0/g" android/build.gradle || true  # Fallback for older templates
+      - name: Update AGP version in build.gradle (multiple patterns)
+        run: |
+          # Essayer différents patterns pour l'AGP
+          sed -i "s/8\.1\.0/8.6.0/g" android/build.gradle || true
+          sed -i "s/8\.1\.1/8.6.0/g" android/build.gradle || true
+          sed -i "s/8\.0\.[0-9]/8.6.0/g" android/build.gradle || true
+          sed -i "s/7\.[0-9]\.[0-9]/8.6.0/g" android/build.gradle || true
+          # Pour le format classpath dans build.gradle
+          sed -i "s/com\.android\.tools\.build:gradle:[0-9]\+\.[0-9]\+\.[0-9]\+/com.android.tools.build:gradle:8.6.0/g" android/build.gradle || true
 
-      - name: Update Kotlin version in settings.gradle
-        run: sed -i "s/1.8.22/2.1.0/g" android/settings.gradle || true  # Bump to min 2.1.0
+      - name: Update Kotlin version in settings.gradle (multiple patterns)
+        run: |
+          sed -i "s/1\.8\.22/2.1.0/g" android/settings.gradle || true
+          sed -i "s/1\.9\.[0-9]\+/2.1.0/g" android/settings.gradle || true
+          sed -i "s/1\.8\.[0-9]\+/2.1.0/g" android/settings.gradle || true
 
-      - name: Update Kotlin version in build.gradle
-        run: sed -i "s/1.8.22/2.1.0/g" android/build.gradle || true  # Fallback for older templates
+      - name: Update Kotlin version in build.gradle (multiple patterns)
+        run: |
+          sed -i "s/1\.8\.22/2.1.0/g" android/build.gradle || true
+          sed -i "s/1\.9\.[0-9]\+/2.1.0/g" android/build.gradle || true
+          sed -i "s/1\.8\.[0-9]\+/2.1.0/g" android/build.gradle || true
+
+      - name: Verify AGP version update
+        run: |
+          echo "=== Contenu de android/settings.gradle ==="
+          cat android/settings.gradle || echo "settings.gradle non trouvé"
+          echo "=== Contenu de android/build.gradle ==="
+          cat android/build.gradle || echo "build.gradle non trouvé"
+          echo "=== Recherche des versions AGP ==="
+          grep -n "8\." android/settings.gradle android/build.gradle || echo "Aucune version 8.x trouvée"
 
       - name: Setup Java (for keystore handling)
         uses: actions/setup-java@v4
@@ -58,4 +85,4 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release --android-skip-build-dependency-validation  # Temporary bypass for warnings
+        run: flutter build apk --release --android-skip-build-dependency-validation
