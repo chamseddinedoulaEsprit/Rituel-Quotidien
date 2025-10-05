@@ -70,14 +70,19 @@ jobs:
                 if ! grep -q "^dependencies {" "$BUILD_FILE"; then
                   echo "" >> "$BUILD_FILE"
                   echo "dependencies {" >> "$BUILD_FILE"
-                  echo "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'" >> "$BUILD_FILE"
+                  echo "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'" >> "$BUILD_FILE"
                   echo "}" >> "$BUILD_FILE"
-                  echo "Bloc dependencies créé avec desugaring"
+                  echo "Bloc dependencies créé avec desugaring v2.1.4"
                 else
                   # Ajouter dans le bloc dependencies existant
-                  sed -i '/^dependencies {/a\    coreLibraryDesugaring '\''com.android.tools:desugar_jdk_libs:2.0.4'\''' "$BUILD_FILE"
-                  echo "Dépendance desugaring ajoutée"
+                  sed -i '/^dependencies {/a\    coreLibraryDesugaring '\''com.android.tools:desugar_jdk_libs:2.1.4'\''' "$BUILD_FILE"
+                  echo "Dépendance desugaring v2.1.4 ajoutée"
                 fi
+              else
+                # Mettre à jour la version existante si elle est inférieure à 2.1.4
+                sed -i 's/desugar_jdk_libs:2\.0\.[0-9]/desugar_jdk_libs:2.1.4/g' "$BUILD_FILE"
+                sed -i 's/desugar_jdk_libs:2\.1\.[0-3]/desugar_jdk_libs:2.1.4/g' "$BUILD_FILE"
+                echo "Version desugaring mise à jour vers 2.1.4"
               fi
             fi
           else
@@ -112,7 +117,16 @@ jobs:
             if grep -A 10 -B 2 "dependencies" "$BUILD_FILE"; then
               if grep -q "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE"; then
                 echo "✓ Dépendance coreLibraryDesugaring trouvée"
-                grep -n "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE"
+                DESUGAR_LINE=$(grep -n "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE")
+                echo "$DESUGAR_LINE"
+                # Vérifier la version
+                if grep -q "desugar_jdk_libs:2\.1\.4" "$BUILD_FILE"; then
+                  echo "✅ Version 2.1.4 confirmée (requis par flutter_local_notifications)"
+                elif grep -q "desugar_jdk_libs:2\.[2-9]\." "$BUILD_FILE"; then
+                  echo "✅ Version supérieure à 2.1.4 détectée"
+                else
+                  echo "⚠️  Version potentiellement insuffisante (requis: 2.1.4+)"
+                fi
               else
                 echo "❌ Dépendance coreLibraryDesugaring non trouvée"
               fi
