@@ -46,36 +46,98 @@ jobs:
 
       - name: Enable Core Library Desugaring
         run: |
-          # Vérifier si le fichier app/build.gradle existe
-          if [ -f "android/app/build.gradle" ]; then
-            echo "Mise à jour de android/app/build.gradle pour activer le desugaring..."
+          BUILD_FILE="android/app/build.gradle"
+          
+          if [ -f "$BUILD_FILE" ]; then
+            echo "Configuration du desugaring dans $BUILD_FILE..."
+            cp "$BUILD_FILE" "${BUILD_FILE}.backup"
             
-            # Ajouter coreLibraryDesugaringEnabled = true dans compileOptions si pas déjà présent
-            if ! grep -q "coreLibraryDesugaringEnabled" android/app/build.gradle; then
-              sed -i '/compileOptions {/a\        coreLibraryDesugaringEnabled true' android/app/build.gradle
+            # Vérifier si desugaring est déjà configuré
+            if grep -q "coreLibraryDesugaringEnabled" "$BUILD_FILE" && grep -q "coreLibraryDesugaring" "$BUILD_FILE"; then
+              echo "Desugaring déjà configuré"
+            else
+              # Ajouter coreLibraryDesugaringEnabled dans compileOptions
+              if ! grep -q "coreLibraryDesugaringEnabled" "$BUILD_FILE"; then
+                if grep -q "compileOptions {" "$BUILD_FILE"; then
+                  sed -i '/compileOptions {/a\        coreLibraryDesugaringEnabled true' "$BUILD_FILE"
+                  echo "Ajout de coreLibraryDesugaringEnabled"
+                fi
+              fi
+              
+              # Ajouter la dépendance de desugaring - créer le bloc dependencies s'il n'existe pas
+              if ! grep -q "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE"; then
+                # Ajouter le bloc dependencies à la fin si pas présent
+                if ! grep -q "^dependencies {" "$BUILD_FILE"; then
+                  echo "" >> "$BUILD_FILE"
+                  echo "dependencies {" >> "$BUILD_FILE"
+                  echo "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'" >> "$BUILD_FILE"
+                  echo "}" >> "$BUILD_FILE"
+                  echo "Bloc dependencies créé avec desugaring"
+                else
+                  # Ajouter dans le bloc dependencies existant
+                  sed -i '/^dependencies {/a\    coreLibraryDesugaring '\''com.android.tools:desugar_jdk_libs:2.0.4'\''' "$BUILD_FILE"
+                  echo "Dépendance desugaring ajoutée"
+                fi
+              fi
             fi
-            
-            # Ajouter la dépendance de desugaring si pas déjà présente
-            if ! grep -q "com.android.tools:desugar_jdk_libs" android/app/build.gradle; then
-              sed -i '/dependencies {/a\    coreLibraryDesugaring '\''com.android.tools:desugar_jdk_libs:2.0.4'\''' android/app/build.gradle
-            fi
-            
-            # S'assurer que sourceCompatibility et targetCompatibility sont à Java 8 minimum
-            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_1_8/g' android/app/build.gradle
-            
-            echo "Desugaring activé avec succès"
           else
-            echo "Fichier android/app/build.gradle non trouvé"
+            echo "Fichier $BUILD_FILE non trouvé"
+            exit 1
           fi
 
       - name: Verify build.gradle modifications
         run: |
-          echo "=== Contenu de android/app/build.gradle (compileOptions) ==="
-          grep -A 10 -B 2 "compileOptions" android/app/build.gradle || echo "compileOptions non trouvé"
-          echo "=== Contenu de android/app/build.gradle (dependencies) ==="
-          grep -A 5 -B 2 "dependencies" android/app/build.gradle || echo "dependencies non trouvé"
-          echo "=== Recherche du desugaring ==="
-          grep -n "desugar" android/app/build.gradle || echo "desugaring non trouvé"
+          BUILD_FILE="android/app/build.gradle"
+          echo "=== Vérification du fichier $BUILD_FILE ==="
+          
+          if [ -f "$BUILD_FILE" ]; then
+            echo "✓ Fichier trouvé"
+            
+            # Vérifier compileOptions
+            echo ""
+            echo "=== Section compileOptions ==="
+            if grep -A 5 -B 2 "compileOptions" "$BUILD_FILE"; then
+              if grep -q "coreLibraryDesugaringEnabled.*true" "$BUILD_FILE"; then
+                echo "✓ coreLibraryDesugaringEnabled est activé"
+              else
+                echo "⚠️  coreLibraryDesugaringEnabled non trouvé ou non activé"
+              fi
+            else
+              echo "❌ Section compileOptions non trouvée"
+            fi
+            
+            # Vérifier dependencies
+            echo ""
+            echo "=== Section dependencies ==="
+            if grep -A 10 -B 2 "dependencies" "$BUILD_FILE"; then
+              if grep -q "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE"; then
+                echo "✓ Dépendance coreLibraryDesugaring trouvée"
+                grep -n "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE"
+              else
+                echo "❌ Dépendance coreLibraryDesugaring non trouvée"
+              fi
+            else
+              echo "❌ Section dependencies non trouvée"
+            fi
+            
+            # Résumé final
+            echo ""
+            echo "=== Résumé de la configuration desugaring ==="
+            DESUGARING_ENABLED=$(grep -c "coreLibraryDesugaringEnabled.*true" "$BUILD_FILE" || echo "0")
+            DESUGARING_DEP=$(grep -c "coreLibraryDesugaring.*desugar_jdk_libs" "$BUILD_FILE" || echo "0")
+            
+            if [ "$DESUGARING_ENABLED" -gt 0 ] && [ "$DESUGARING_DEP" -gt 0 ]; then
+              echo "✅ Configuration desugaring COMPLÈTE"
+            elif [ "$DESUGARING_ENABLED" -gt 0 ]; then
+              echo "⚠️  Desugaring activé mais dépendance manquante"
+            elif [ "$DESUGARING_DEP" -gt 0 ]; then
+              echo "⚠️  Dépendance présente mais desugaring non activé"
+            else
+              echo "❌ Configuration desugaring INCOMPLÈTE"
+            fi
+          else
+            echo "❌ Fichier $BUILD_FILE non trouvé"
+          fi
 
       - name: Setup Java (for keystore handling)
         uses: actions/setup-java@v4
