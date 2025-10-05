@@ -257,16 +257,95 @@ jobs:
 
       - name: Decode Keystore
         run: |
-          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/upload-keystore.jks
+          # Vérifier si le secret KEYSTORE existe
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            echo "Décodage du keystore..."
+            echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/upload-keystore.jks
+            
+            # Vérifier que le fichier a été créé correctement
+            if [ -f "android/app/upload-keystore.jks" ]; then
+              echo "✅ Keystore décodé avec succès"
+              ls -la android/app/upload-keystore.jks
+            else
+              echo "❌ Échec du décodage du keystore"
+              exit 1
+            fi
+          else
+            echo "⚠️ Secret KEYSTORE non configuré - construction en mode debug"
+            # Créer un keystore temporaire pour debug si pas de secret
+            keytool -genkey -v -keystore android/app/debug-keystore.jks \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias debugkey -storepass android -keypass android \
+              -dname "CN=Debug,OU=Debug,O=Debug,L=Debug,ST=Debug,C=US"
+            echo "✅ Keystore debug créé"
+          fi
 
       - name: Create key.properties
         run: |
-          cat <<EOF > android/key.properties
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            # Mode release avec keystore signé
+            cat <<EOF > android/key.properties
           storePassword=${{ secrets.STORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=../app/upload-keystore.jks
           EOF
+            echo "✅ Configuration release keystore créée"
+          else
+            # Mode debug
+            cat <<EOF > android/key.properties
+          storePassword=android
+          keyPassword=android
+          keyAlias=debugkey
+          storeFile=../app/debug-keystore.jks
+          EOF
+            echo "✅ Configuration debug keystore créée"
+          fi
+          
+          # Afficher le contenu pour debug (sans les mots de passe)
+          echo "=== Configuration keystore ==="
+          grep -v Password android/key.properties || echo "Fichier key.properties vide"
+
+      - name: Validate Keystore
+        run: |
+          # Valider le keystore avant la construction
+          KEY_PROPERTIES="android/key.properties"
+          if [ -f "$KEY_PROPERTIES" ]; then
+            # Lire les propriétés du keystore
+            STORE_FILE=$(grep "storeFile=" "$KEY_PROPERTIES" | cut -d'=' -f2)
+            STORE_ALIAS=$(grep "keyAlias=" "$KEY_PROPERTIES" | cut -d'=' -f2)
+            
+            # Construire le chemin complet du keystore
+            if [[ "$STORE_FILE" == "../app/"* ]]; then
+              KEYSTORE_PATH="android/app/$(basename $STORE_FILE)"
+            else
+              KEYSTORE_PATH="android/$STORE_FILE"
+            fi
+            
+            echo "Validation du keystore: $KEYSTORE_PATH"
+            
+            if [ -f "$KEYSTORE_PATH" ]; then
+              # Tenter de lister les entrées du keystore pour valider
+              echo "✅ Fichier keystore trouvé"
+              file "$KEYSTORE_PATH" || echo "Type de fichier non déterminé"
+              
+              # Vérifier la taille du fichier
+              SIZE=$(wc -c < "$KEYSTORE_PATH")
+              echo "Taille du keystore: $SIZE bytes"
+              
+              if [ "$SIZE" -gt 100 ]; then
+                echo "✅ Taille du keystore semble valide"
+              else
+                echo "⚠️ Keystore semble trop petit, possible erreur de décodage"
+              fi
+            else
+              echo "❌ Fichier keystore non trouvé: $KEYSTORE_PATH"
+              exit 1
+            fi
+          else
+            echo "❌ Fichier key.properties non trouvé"
+            exit 1
+          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
